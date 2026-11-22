@@ -4,6 +4,58 @@ import random
 import unittest
 
 from inventory.hash_table import HashTable
+from inventory.sorted_index import SortedKeyList
+
+
+class TestSortedKeyList(unittest.TestCase):
+    def test_random_operations_against_sorted_reference(self):
+        for load in (1, 2, 4, 64):              # tiny blocks force constant splits and merges
+            rng = random.Random(load)
+            s, ref = SortedKeyList(load=load), set()
+            for step in range(3000):
+                k = (rng.randrange(50), f"S{rng.randrange(40)}")
+                if rng.random() < 0.45 and ref:
+                    k = rng.choice(sorted(ref))
+                    s.remove(k)
+                    ref.discard(k)
+                else:
+                    self.assertEqual(s.insert(k), k not in ref)
+                    ref.add(k)
+                if step % 50 == 0:
+                    self.assertEqual(s.check_invariants(), [], (load, step))
+                    self.assertEqual(list(s), sorted(ref))
+                    lo, hi = sorted((rng.randrange(52), rng.randrange(52)))
+                    expected = [x for x in sorted(ref) if (lo, "") <= x < (hi, "")]
+                    self.assertEqual(s.range((lo, ""), (hi, "")), expected)
+                    self.assertEqual(s.range((lo, ""), (hi, ""), limit=3), expected[:3])
+            self.assertEqual(len(s), len(ref))
+
+    def test_bulk_build_and_queries(self):
+        keys = [(i % 97, f"K{i:05}") for i in range(10_000)]
+        s = SortedKeyList(keys, load=128)
+        self.assertEqual(list(s), sorted(keys))
+        self.assertEqual(s.check_invariants(), [])
+        self.assertEqual(s.first(3), sorted(keys)[:3])
+        self.assertIn((5, "K00005"), s)
+        self.assertNotIn((5, "nope"), s)
+        self.assertEqual(SortedKeyList([(1, "a"), (1, "a")]).first(5), [(1, "a")])   # duplicates collapse
+
+    def test_edges(self):
+        s = SortedKeyList(load=2)
+        self.assertEqual(s.range((0, ""), (99, "")), [])
+        self.assertEqual(s.first(2), [])
+        with self.assertRaises(KeyError):
+            s.remove((1, "x"))
+        for k in [(3, "c"), (1, "a"), (2, "b"), (9, "z"), (5, "e")]:
+            s.insert(k)
+        with self.assertRaises(KeyError):
+            s.remove((10, "past the end"))
+        self.assertEqual(s.range((2, ""), (5, "")), [(2, "b"), (3, "c")])     # high is exclusive
+        self.assertEqual(s.range((6, ""), (9, "")), [])
+        self.assertEqual(s.range((9, ""), (100, "")), [(9, "z")])
+        for k in list(s):
+            s.remove(k)
+        self.assertEqual((len(s), s._blocks, s.check_invariants()), (0, [], []))
 
 
 class TestBackwardShiftDeletion(unittest.TestCase):
