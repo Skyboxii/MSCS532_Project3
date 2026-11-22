@@ -8,6 +8,7 @@ against either one.
 """
 
 import random
+import time
 
 WORDS = ["Desk", "Laptop", "Cable", "Mouse", "Chair", "Lamp", "Paper", "Pen", "Mug", "Bottle",
          "Hoodie", "Monitor", "Stapler", "Tape", "Shelf", "Cap", "Keyboard", "Hub", "Folder", "Map"]
@@ -49,14 +50,20 @@ def price_window(n):
 
 
 def run_mixed(pkg, inv, ops, seed=1):
-    """Apply `ops` operations drawn from MIX. Returns a checksum so runs can be compared."""
+    """
+    Apply `ops` operations drawn from MIX.  Returns (checksum, seconds): the
+    checksum lets runs on different packages be compared, and seconds times
+    only the operations (listing the catalog's SKUs beforehand is setup).
+    """
     rng = random.Random(seed)
     names, weights = zip(*MIX)
     skus = [s for s in _all_skus(inv)]
     next_id = 10_000_000
     width = price_window(max(len(inv), 1))
     checksum = 0
-    for op in rng.choices(names, weights, k=ops):
+    plan = rng.choices(names, weights, k=ops)
+    start = time.perf_counter()
+    for op in plan:
         sku = skus[rng.randrange(len(skus))]
         if op == "sell":
             q = inv.get(sku).quantity
@@ -83,8 +90,10 @@ def run_mixed(pkg, inv, ops, seed=1):
             skus.append(p.sku)
             next_id += 1
         elif op == "remove" and len(skus) > 1:
-            inv.remove_product(skus.pop(rng.randrange(len(skus))))
-    return checksum
+            i = rng.randrange(len(skus))
+            skus[i], skus[-1] = skus[-1], skus[i]       # O(1) removal from the driver's list;
+            inv.remove_product(skus.pop())              # pop(i) would shift millions of entries
+    return checksum, time.perf_counter() - start
 
 
 def _all_skus(inv):

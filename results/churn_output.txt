@@ -1,0 +1,3 @@
+Power throttling disabled: True
+Phase 2 (tombstones): miss slots mean 803.57, max 2757.11; occupied up to 0.60; slowest single op 3.81 ms (median window 0.023 ms)
+Phase 3 (backward shift): miss slots mean 6.02, max 81.12; occupied up to 0.27; slowest single op 0.62 ms (median window 0.043 ms)

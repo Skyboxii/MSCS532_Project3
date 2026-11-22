@@ -1,0 +1,5 @@
+Power throttling disabled: True
+
+=== Experiment 4: mixed workload, 50,000 operations on 100,000 products ===
+Phase 2: 0.55 s, 90,641 ops/s, checksum 9911028
+Phase 3: 0.27 s, 186,428 ops/s, checksum 9911028

@@ -1,0 +1,73 @@
+version,n,operation,us
+Phase 2,1000,get,0.245
+Phase 2,1000,adjust_quantity,5.899
+Phase 2,1000,update_price,10.109
+Phase 2,1000,change_category,5.054
+Phase 2,1000,price_range (k≈10),5.961
+Phase 2,1000,name_search (10),4.573
+Phase 2,1000,low_stock (20),7.721
+Phase 2,1000,category listing,5.194
+Phase 2,1000,add + remove,20.013
+Phase 3,1000,get,0.063
+Phase 3,1000,adjust_quantity,2.124
+Phase 3,1000,update_price,4.097
+Phase 3,1000,change_category,1.824
+Phase 3,1000,price_range (k≈10),2.883
+Phase 3,1000,name_search (10),1.351
+Phase 3,1000,low_stock (20),4.089
+Phase 3,1000,category listing,0.482
+Phase 3,1000,add + remove,5.268
+Phase 2,10000,get,0.216
+Phase 2,10000,adjust_quantity,6.048
+Phase 2,10000,update_price,11.639
+Phase 2,10000,change_category,3.415
+Phase 2,10000,price_range (k≈10),7.365
+Phase 2,10000,name_search (10),4.83
+Phase 2,10000,low_stock (20),9.923
+Phase 2,10000,category listing,55.283
+Phase 2,10000,add + remove,24.012
+Phase 3,10000,get,0.069
+Phase 3,10000,adjust_quantity,2.245
+Phase 3,10000,update_price,4.274
+Phase 3,10000,change_category,1.3
+Phase 3,10000,price_range (k≈10),3.223
+Phase 3,10000,name_search (10),2.181
+Phase 3,10000,low_stock (20),4.998
+Phase 3,10000,category listing,5.66
+Phase 3,10000,add + remove,5.866
+Phase 2,100000,get,0.248
+Phase 2,100000,adjust_quantity,6.342
+Phase 2,100000,update_price,14.642
+Phase 2,100000,change_category,3.105
+Phase 2,100000,price_range (k≈10),14.468
+Phase 2,100000,name_search (10),5.181
+Phase 2,100000,low_stock (20),10.129
+Phase 2,100000,category listing,897.131
+Phase 2,100000,add + remove,29.374
+Phase 3,100000,get,0.081
+Phase 3,100000,adjust_quantity,2.414
+Phase 3,100000,update_price,5.386
+Phase 3,100000,change_category,1.324
+Phase 3,100000,price_range (k≈10),5.473
+Phase 3,100000,name_search (10),3.296
+Phase 3,100000,low_stock (20),5.18
+Phase 3,100000,category listing,118.823
+Phase 3,100000,add + remove,7.899
+Phase 2,1000000,get,0.272
+Phase 2,1000000,adjust_quantity,6.998
+Phase 2,1000000,update_price,18.238
+Phase 2,1000000,change_category,3.155
+Phase 2,1000000,price_range (k≈10),29.816
+Phase 2,1000000,name_search (10),5.667
+Phase 2,1000000,low_stock (20),10.133
+Phase 2,1000000,category listing,14371.44
+Phase 2,1000000,add + remove,35.273
+Phase 3,1000000,get,0.099
+Phase 3,1000000,adjust_quantity,2.693
+Phase 3,1000000,update_price,8.11
+Phase 3,1000000,change_category,1.31
+Phase 3,1000000,price_range (k≈10),12.327
+Phase 3,1000000,name_search (10),3.373
+Phase 3,1000000,low_stock (20),5.148
+Phase 3,1000000,category listing,3895.318
+Phase 3,1000000,add + remove,10.767

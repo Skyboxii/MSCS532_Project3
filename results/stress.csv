@@ -1,0 +1,4 @@
+n,generate_s,bulk_load_s,memory_mb,get_us,adjust_quantity_us,update_price_us,price_range_us,name_search_us,low_stock_us,memory_bytes_per_product,mixed_ops_per_s,abort_100k_s,rollback_ok,verify_s,integrity_ok
+1000000,5.076,4.004,717.98,0.486,3.615,10.419,12.428,2.878,5.232,752.857,159206.008,1.242,True,2.917,True
+2000000,10.228,8.907,1308.699,0.518,3.771,11.745,19.51,2.819,5.174,686.135,143255.783,1.742,True,6.068,True
+4000000,20.698,19.891,2589.523,0.57,3.95,12.694,31.71,3.312,5.085,678.828,122843.302,1.899,True,12.338,True

@@ -27,6 +27,7 @@ Phase 3 optimizations (each traced to the Phase 2 profile):
     them in, instead of n separate transactional inserts.
 """
 
+import gc
 from decimal import Decimal
 
 from .exceptions import (DuplicateSKUError, InsufficientStockError, InventoryError,
@@ -175,14 +176,26 @@ class InventoryManager:
             seen.add(p.sku)
         everything = list(self._products.values()) + new
 
-        products = {p.sku: p for p in everything}
-        by_price = SortedKeyList((p.cents, p.sku) for p in everything)
-        by_name = SortedKeyList((p.name_key, p.sku) for p in everything)
-        categories = {}
-        for p in everything:
-            categories.setdefault(p.category, set()).add(p.sku)
-        stock = IndexedMinHeap.from_items((p.sku, p.stock_gap) for p in everything)
-        total = sum(p.cents * p.quantity for p in everything)
+        # Pause Python's cyclic garbage collector while building millions of
+        # objects.  Stress tests showed that otherwise the collector defers a
+        # full pass over them to whatever runs next: at 4,000,000 products the
+        # first 5,000 updates after a load averaged 107 us instead of 4 us.
+        # The indexes contain no reference cycles, so nothing is lost by
+        # waiting; reference counting still frees ordinary garbage at once.
+        collector_was_on = gc.isenabled()
+        gc.disable()
+        try:
+            products = {p.sku: p for p in everything}
+            by_price = SortedKeyList((p.cents, p.sku) for p in everything)
+            by_name = SortedKeyList((p.name_key, p.sku) for p in everything)
+            categories = {}
+            for p in everything:
+                categories.setdefault(p.category, set()).add(p.sku)
+            stock = IndexedMinHeap.from_items((p.sku, p.stock_gap) for p in everything)
+            total = sum(p.cents * p.quantity for p in everything)
+        finally:
+            if collector_was_on:
+                gc.enable()
 
         (self._products, self._by_price, self._by_name, self._categories, self._stock,
          self._total_cents) = products, by_price, by_name, categories, stock, total

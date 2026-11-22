@@ -1,0 +1,5 @@
+n,collector,bulk_load_s,first_5000_updates_us,next_5000_updates_us
+1000000,normal,4.01,3.74,3.11
+1000000,paused,3.50,3.67,3.07
+4000000,normal,20.48,4.33,3.62
+4000000,paused,17.44,4.03,3.29

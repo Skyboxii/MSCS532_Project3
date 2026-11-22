@@ -1,32 +1,32 @@
-inventory: build 100,000 products in 0.89 s, then 50,000 mixed operations
+inventory: build 100,000 products in 0.91 s, then 50,000 mixed operations
 
-         2581872 function calls (2581821 primitive calls) in 0.903 seconds
+         2581729 function calls (2581678 primitive calls) in 0.841 seconds
 
    Ordered by: internal time
-   List reduced from 87 to 22 due to restriction <22>
+   List reduced from 89 to 22 due to restriction <22>
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-    34934    0.087    0.000    0.166    0.000 product.py:112(evolve)
-    27591    0.082    0.000    0.287    0.000 inventory_manager.py:191(adjust_quantity)
-        1    0.071    0.071    0.903    0.903 workload.py:51(run_mixed)
-    60493    0.047    0.000    0.047    0.000 {method 'pop' of 'list' objects}
-    86553    0.041    0.000    0.105    0.000 random.py:295(randrange)
-1578/1528    0.039    0.000    0.091    0.000 {built-in method builtins.sorted}
-    38803    0.036    0.000    0.036    0.000 {built-in method _bisect.bisect_left}
-    93236    0.036    0.000    0.057    0.000 random.py:245(_randbelow_with_getrandbits)
-   111334    0.028    0.000    0.028    0.000 {method 'get' of 'dict' objects}
-   282212    0.028    0.000    0.028    0.000 {built-in method builtins.getattr}
-    27591    0.023    0.000    0.042    0.000 indexed_heap.py:92(update)
-     4811    0.022    0.000    0.102    0.000 inventory_manager.py:212(update_price)
-    10415    0.022    0.000    0.033    0.000 product.py:20(to_price)
-    62847    0.019    0.000    0.043    0.000 inventory_manager.py:400(_require)
-   175515    0.019    0.000    0.019    0.000 {method 'append' of 'list' objects}
-    30219    0.019    0.000    0.029    0.000 indexed_heap.py:124(items_at_or_below)
-   209576    0.016    0.000    0.016    0.000 {built-in method builtins.isinstance}
-138720/138719    0.013    0.000    0.013    0.000 {built-in method builtins.len}
-     2528    0.013    0.000    0.042    0.000 inventory_manager.py:297(products_in_price_range)
-     5035    0.013    0.000    0.030    0.000 sorted_index.py:111(range)
+    34934    0.085    0.000    0.163    0.000 product.py:118(evolve)
+    27591    0.079    0.000    0.280    0.000 inventory_manager.py:207(adjust_quantity)
+        1    0.070    0.070    0.841    0.841 workload.py:52(run_mixed)
+    86553    0.039    0.000    0.102    0.000 random.py:295(randrange)
+1578/1528    0.039    0.000    0.089    0.000 {built-in method builtins.sorted}
+    93236    0.036    0.000    0.056    0.000 random.py:245(_randbelow_with_getrandbits)
+    38803    0.035    0.000    0.035    0.000 {built-in method _bisect.bisect_left}
+   111319    0.027    0.000    0.027    0.000 {method 'get' of 'dict' objects}
+   282212    0.027    0.000    0.027    0.000 {built-in method builtins.getattr}
+    27591    0.023    0.000    0.041    0.000 indexed_heap.py:92(update)
+    10415    0.022    0.000    0.033    0.000 product.py:22(to_price)
+     4811    0.021    0.000    0.099    0.000 inventory_manager.py:228(update_price)
+    62847    0.019    0.000    0.042    0.000 inventory_manager.py:418(_require)
+   175470    0.018    0.000    0.018    0.000 {method 'append' of 'list' objects}
+    30219    0.018    0.000    0.028    0.000 indexed_heap.py:124(items_at_or_below)
+   209626    0.016    0.000    0.016    0.000 {built-in method builtins.isinstance}
+     2528    0.013    0.000    0.041    0.000 inventory_manager.py:315(products_in_price_range)
+138720/138719    0.012    0.000    0.012    0.000 {built-in method builtins.len}
    158605    0.012    0.000    0.012    0.000 {built-in method _operator.index}
-    21031    0.012    0.000    0.012    0.000 indexed_heap.py:45(_sift_up)
+     5035    0.012    0.000    0.028    0.000 sorted_index.py:111(range)
+    21031    0.011    0.000    0.011    0.000 indexed_heap.py:45(_sift_up)
+   123272    0.011    0.000    0.011    0.000 {method 'getrandbits' of '_random.Random' objects}
 
 
