@@ -88,10 +88,7 @@ class TestSkipList(unittest.TestCase):
 
 class TestIndexedMinHeap(unittest.TestCase):
     def assert_heap_order(self, h):
-        for i in range(1, len(h._heap)):
-            self.assertLessEqual(h._heap[(i - 1) // 2], h._heap[i])
-        for i, (_, item) in enumerate(h._heap):
-            self.assertEqual(h._pos[item], i)
+        self.assertEqual(h.check_invariants(), [])
 
     def test_push_pop_order(self):
         h = IndexedMinHeap()

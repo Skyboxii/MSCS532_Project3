@@ -4,7 +4,45 @@ import random
 import unittest
 
 from inventory.hash_table import HashTable
+from inventory.indexed_heap import IndexedMinHeap
 from inventory.sorted_index import SortedKeyList
+
+
+class TestArrayHeap(unittest.TestCase):
+    def test_floyd_heapify_matches_pushes(self):
+        rng = random.Random(2)
+        pairs = [(f"S{i:04}", rng.randint(-20, 20)) for i in range(2000)]
+        built = IndexedMinHeap.from_items(pairs)
+        self.assertEqual(built.check_invariants(), [])
+        pushed = IndexedMinHeap()
+        for item, p in pairs:
+            pushed.push(item, p)
+        drain = lambda h: [h.pop() for _ in range(len(h))]          # noqa: E731
+        self.assertEqual(drain(built), drain(pushed))
+        self.assertEqual(drain(built), [])
+        with self.assertRaises(KeyError):
+            IndexedMinHeap.from_items([("A", 1), ("A", 2)])
+
+    def test_random_operations_against_reference(self):
+        rng = random.Random(8)
+        h, ref = IndexedMinHeap(), {}
+        for step in range(5000):
+            op = rng.random()
+            item = f"I{rng.randrange(300)}"
+            if item not in ref:
+                h.push(item, rng.randint(-50, 50))
+                ref[item] = h.priority_of(item)
+            elif op < 0.3:
+                h.remove(item)
+                del ref[item]
+            else:
+                ref[item] = rng.randint(-50, 50)
+                h.update(item, ref[item])
+            if step % 250 == 0 and ref:
+                self.assertEqual(h.check_invariants(), [])
+                self.assertEqual(h.peek(), min(ref.items(), key=lambda kv: (kv[1], kv[0])))
+                self.assertEqual(sorted(h.items_at_or_below(0)),
+                                 sorted((i, p) for i, p in ref.items() if p <= 0))
 
 
 class TestSortedKeyList(unittest.TestCase):

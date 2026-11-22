@@ -130,7 +130,7 @@ class TestVerifyIntegrity(unittest.TestCase):
 
     def test_detects_heap_corruption(self):
         inv = build()
-        inv._stock._heap[0][0] = 10_000
+        inv._stock._prio[0] = 10_000
         self.assertTrue(inv.verify_integrity())
 
 
