@@ -1,0 +1,32 @@
+phase2_inventory: build 100,000 products in 2.36 s, then 50,000 mixed operations
+
+         5230120 function calls (5230069 primitive calls) in 2.788 seconds
+
+   Ordered by: internal time
+   List reduced from 116 to 22 due to restriction <22>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   325291    0.204    0.000    0.284    0.000 hash_table.py:28(_probe)
+    16807    0.192    0.000    0.192    0.000 skip_list.py:40(_predecessors)
+    27591    0.152    0.000    1.211    0.000 inventory_manager.py:127(adjust_quantity)
+        1    0.152    0.152    2.788    2.788 workload.py:51(run_mixed)
+    34934    0.126    0.000    0.587    0.000 dataclasses.py:1599(_replace)
+    35482    0.095    0.000    0.366    0.000 product.py:69(__post_init__)
+   212786    0.091    0.000    0.251    0.000 hash_table.py:98(__getitem__)
+    40538    0.086    0.000    0.133    0.000 product.py:11(to_price)
+   115937    0.072    0.000    0.581    0.000 inventory_manager.py:40(do)
+    86553    0.071    0.000    0.181    0.000 random.py:295(randrange)
+   106446    0.064    0.000    0.110    0.000 product.py:44(to_text)
+    93236    0.062    0.000    0.098    0.000 random.py:245(_randbelow_with_getrandbits)
+498512/498511    0.060    0.000    0.060    0.000 {built-in method builtins.len}
+    35482    0.058    0.000    0.424    0.000 <string>:2(__init__)
+   456646    0.056    0.000    0.056    0.000 {built-in method builtins.isinstance}
+1578/1528    0.045    0.000    0.214    0.000 {built-in method builtins.sorted}
+   325291    0.044    0.000    0.044    0.000 {built-in method builtins.hash}
+    30219    0.044    0.000    0.067    0.000 indexed_heap.py:96(items_at_or_below)
+   245571    0.043    0.000    0.043    0.000 {built-in method builtins.getattr}
+    33477    0.041    0.000    0.093    0.000 inventory_manager.py:327(_change_value)
+    34934    0.041    0.000    0.650    0.000 dataclasses.py:1580(replace)
+   227925    0.040    0.000    0.040    0.000 {method 'append' of 'list' objects}
+
+
