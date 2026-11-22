@@ -1,86 +1,74 @@
-# Dynamic Inventory Management: Proof of Concept Implementation
+# Dynamic Inventory Management: Optimization, Scaling, and Final Evaluation
 
 Skyler Troxell  
 School of Computer and Information Sciences, University of the Cumberlands  
 MSCS-532: Algorithms and Data Structures  
-Project Deliverable 2: Proof of Concept Implementation  
-November 15, 2026  
-GitHub Repository: https://github.com/Skyboxii/MSCS532_Project2  
+Project Deliverable 3: Optimization, Scaling, and Final Evaluation  
+November 21, 2026  
+GitHub Repository: https://github.com/Skyboxii/MSCS532_Project3  
 
 ## Introduction
 
-In Phase 1, I designed four data structures for an inventory system whose quantities, prices, and categories change constantly, and I implemented them as standalone classes. This phase turns them into a working proof of concept: an application core that validates its input, keeps every index consistent even when an update fails, loads data from files, and can be driven from a command line. The repository continues the Phase 1 commit history.
+The Phase 2 proof of concept was correct, but it was not built for volume. Before changing any code, I profiled it on a simulated store day of 50,000 mixed operations against 100,000 products, and froze a copy of the Phase 2 package so every comparison runs the same work on the same data. The rule I follow in integration work applied here too: measure first, because the slow part is rarely where you expect it.
 
-### Partial Implementation Overview
+### Optimization Techniques
 
-The code is organized in three layers. The bottom layer holds the data structures from Phase 1: an open-addressing hash table for SKU lookups (Knuth, 1998), a skip list ordered by price (Pugh, 1990), a hash table mapping each category to a set of SKUs, and an indexed binary min-heap keyed on quantity minus reorder point for low-stock alerts (Williams, 1964). Phase 2 added a fifth index, a second skip list keyed on the case-folded product name, which supports prefix search in O(log *n* + *k*) time without any new data structure, which is the extension the modular design was meant to allow. The middle layer is `InventoryManager`, a facade (Gamma et al., 1994) that is the only code allowed to change an index. The top layer is the application: a CSV batch loader and an interactive shell (`cli.py`). Persistence, concurrent users, and a graphical interface are out of scope for the proof of concept.
+The profile pointed to a handful of costs, and the largest was a surprise: updating a product re-validated every field, even when only the quantity changed. Table 1 lists each cost, the optimization aimed at it, and the measured effect at one million products.
 
-The most important addition is atomicity. In Phase 1, a product update touched up to four indexes in sequence, and an exception between two of those steps would have left them disagreeing. Each mutation now runs inside a transaction that pairs every index change with the action that reverses it, the same undo-logging idea databases use to guarantee atomicity (Haerder & Reuter, 1983):
+**Table 1.** *Optimizations, the Phase 2 Cost Each Removed, and the Result at 1,000,000 Products*
 
-**Undo log and a price change (inventory_manager.py, abridged)**
+| Optimization | Phase 2 cost removed | Result (Phase 2 → Phase 3) |
+|---|---:|---:|
+| Field-level validation (`evolve`) | Every update re-validated every field (23% of time) | Stock update 7.0 → 2.7 µs |
+| Built-in `dict` for tables | Pure-Python probing (18% of time) | Lookup 0.27 → 0.10 µs |
+| Blocked sorted index | Skip-list pointer chasing | Price range 29.8 → 12.3 µs |
+| Lighter undo log | Closures and a generator per step (21%) | Add + remove 35.3 → 10.8 µs |
+| Cached category order | Re-sorted every listing | Listing 14.4 → 3.9 ms |
+| Bulk load with shadow build | One transaction per product | Load 29.8 → 3.6 s |
+| Slots, shared prices, array heap | Per-object dictionaries and lists | 1,105 → 700 bytes per product |
 
-```python
-class _UndoLog:
-    def do(self, apply, undo):
-        apply()                       # make one index change
-        self._undo.append(undo)       # remember how to reverse it
+Two decisions deserve explanation. First, I moved the product table from my own hash table to Python's built-in `dict`. Both use open addressing, so the algorithm did not change; the difference is that `dict` runs in C. I kept my table and improved its algorithm instead: deletions now shift later entries back into the freed slot (Knuth, 1998) rather than leaving tombstones. Second, I replaced the skip lists with a blocked sorted index, which stores keys in sorted arrays of about 512 entries. This is the B-tree idea of large nodes (Bayer & McCreight, 1972), which keeps related keys next to each other in memory and avoids cache misses (Rao & Ross, 2000).
 
-def update_price(self, sku, new_price):
-    old = self._require(sku)
-    new = replace(old, price=new_price)   # validates before anything changes
-    with self._atomic() as tx:
-        tx.do(lambda: self._by_price.remove((old.price, sku)),
-              lambda: self._by_price.insert((old.price, sku)))
-        tx.do(lambda: self._by_price.insert((new.price, sku)),
-              lambda: self._by_price.remove((new.price, sku)))
-        self._replace_record(tx, old, new)
-        self._change_value(tx, (new.price - old.price) * old.quantity)
-    return new
-```
+Caching and memoization filled in the rest. Each record computes its price in whole cents and its lowercase search key once, instead of on every comparison. Category listings are cached and dropped only when a category gains or loses a product, so a sale does not invalidate them. Prices are shared objects, the flyweight pattern (Gamma et al., 1994), because a million products have only about 100,000 distinct prices.
 
-If any step raises, `_atomic()` replays the recorded undo actions in reverse and re-raises the error, so callers see the whole update or none of it. A nested `_atomic()` joins the outer transaction, which is what makes the public `inventory.transaction()` block and an all-or-nothing batch load possible with no extra code. A companion method, `verify_integrity()`, cross-checks all five indexes and the running inventory value in O(*n* lg *n*) time.
+### Scaling Strategy
 
-### Demonstration and Testing
+Loading a large catalog one product at a time paid the full transaction cost per product: 29.8 seconds for a million. The new `bulk_load` builds every index off to the side from a single sort, builds the heap in linear time (Floyd, 1964), and then swaps the finished indexes in. If anything fails before the swap, the inventory is untouched, which is the shadow-paging idea (Lorie, 1977) and needs no undo log. A million products now load in 3.6 seconds. CSV import uses the bulk path only when the file adds at least a quarter to the catalog, because rebuilding a million entries to add ten is a bad trade.
 
-`demo.py` runs a scripted day of activity through the same shell a user would type into, and saves the transcript to `docs/demo_output.txt`. Its eight sections load a 25-product catalog, query every index (SKU lookup, price range, name prefix, category, cheapest items), apply sales, receipts, price changes, recategorizations, and renames, and print the low-stock report before and after a sale pushes a notebook below its reorder point. Ten deliberate errors follow, from overselling and unknown SKUs to a price with a fraction of a cent and a missing file. Each produces a one-line message, and the inventory value is identical before and after. Table 1 summarizes the 62 unit tests, which all pass in about 0.2 seconds.
+Memory fell from 1,105 to 700 bytes per product at one million products, a 37% cut, mostly in the indexes (Figure 2). The trade-off showed at 100,000 products, where the records grew from 375 to 443 bytes: the cached keys cost memory, and shared prices only pay off once prices start to repeat. The hardest scaling problem came from the runtime itself. At four million products, the first 5,000 updates after a load averaged 107 µs instead of 4.0, because Python's garbage collector deferred a full pass over the millions of new objects to whatever ran next. Pausing the collector during the load removed the stall; the indexes hold no reference cycles, so nothing is lost by waiting.
 
-The batch tests use a movements file of the kind an integration receives: 12 rows, three of which cannot be parsed and two of which fail when applied (an unknown SKU and a sale larger than the stock on hand). In the default reject-and-continue mode, the loader applies the 7 good rows and reports the 5 bad ones by line number. In all-or-nothing mode, the first failure rolls back every row, and the inventory is unchanged. The failure-injection tests make each internal index call fail once, in turn, during every type of update, and confirm that all 26 resulting failures leave the inventory exactly as it was. Finally, a scaling check timed each operation at 1,000 and 100,000 products. A hash-table lookup took 0.24 and 0.45 µs, a price update 10.93 and 18.69 µs, and the low-stock report 9.94 and 10.55 µs. Growing the catalog 100-fold barely changed these costs, which is consistent with O(1), O(log *n*), and output-sensitive behavior.
+### Testing and Validation
 
-**Table 1.** *Unit Tests by Area*
+Optimization is only useful if the answers stay the same, so the most important new test is differential. It runs 18,000 random operations, a third of them deliberately invalid, against both the frozen Phase 2 package and the optimized one, and requires the same result or the same error message every time. The scripted demonstration also produces a transcript identical to Phase 2's, byte for byte, and all 26 injected mid-update failures still roll back completely. In all, 87 unit tests pass.
 
-| Test file: what the tests verify | Tests |
-|---|---:|
-| structures: hash table, skip list, and heap operations (Phase 1) | 12 |
-| inventory_manager: 3,000 random operations vs. a brute-force model | 8 |
-| validation: bad prices, counts, and text; unknown SKUs; empty inventory | 12 |
-| transactions: 26 injected mid-update failures, each rolled back | 6 |
-| search: prefix search, Unicode case folding, rename | 8 |
-| batch: CSV rows with errors, duplicates, both batch modes | 9 |
-| cli: commands, quoted arguments, one-line error messages | 7 |
+Stress testing with unexpected input found five ways for a raw Python error to escape, most of them present since Phase 2. A price near 10<sup>26</sup> crashed decimal rounding, "-0.00" was stored as a negative zero, and three methods raised `TypeError` on the wrong argument type. Each now raises a clear inventory error. At 1, 2, and 4 million products, every index passed a full integrity check, and a single transaction of 100,000 updates that was deliberately aborted restored the inventory exactly, in 1.9 seconds at the largest size. A delete-heavy test confirmed the hash-table change: with tombstones, a failed lookup scanned 804 slots on average and up to 2,757, while backward shifting averaged 6 and removed the 3.8 ms rehash pauses.
 
-### Implementation Challenges and Solutions
+### Performance Analysis
 
-*An undo step that was really two steps.* The first run of the failure-injection tests found a real bug. Removing a product from a category discarded its SKU from the set and then deleted the category if the set was empty. When the second action failed, the first was never undone, because an undo action is recorded only after its step succeeds. The fix was a rule I now apply to the whole manager: every recorded step must make exactly one change. The category helpers now either delete the category or remove one SKU, never both.
+Figure 1 compares each operation at one million products. Every operation is faster, from 1.7 times for name searches to 3.7 times for category listings. On the mixed store-day workload, throughput rose from 90,641 to 186,428 operations per second, and both versions produced the same checksum. From one to four million products, a lookup went from 0.49 to 0.57 µs, a stock update from 3.6 to 4.0 µs, and the low-stock report stayed at about 5.1 µs, while mixed throughput only fell from 159,206 to 122,843 operations per second.
 
-*Validation gaps.* Writing edge-case tests showed that Phase 1 accepted `Decimal("Infinity")` as a price, which corrupted the running total, and accepted `True` as a quantity, because `bool` is a subclass of `int` in Python. Shared validators now require prices to be finite, non-negative, and whole cents, and require counts to be genuine integers. Because `dataclasses.replace()` re-runs validation, an invalid update fails before any index is touched, so most errors never need a rollback at all. The cents rule proved its worth immediately when it rejected a float sum of 103.69999999999999 in my own benchmark script.
+**Figure 1.** *Time per Operation at 1,000,000 Products, Phase 2 Versus Phase 3*
 
-*Changing error types without breaking callers.* I replaced the generic `KeyError` and `ValueError` with an `InventoryError` hierarchy that callers can catch as one type. Each new class also inherits from the old built-in type, so the Phase 1 tests passed unchanged. This is the same backward-compatibility discipline I follow when changing an integration that other systems already depend on.
+![Time per Operation at 1,000,000 Products, Phase 2 Versus Phase 3](results/speedup_1m.png)
 
-*Smaller design changes.* `rename_product` keeps the new name index current, and `most_urgent()` now returns `None` on an empty inventory instead of leaking a heap error.
+**Figure 2.** *Catalog Load Time and Memory per Product*
 
-### Next Steps
+![Catalog Load Time and Memory per Product](results/load_and_memory.png)
 
-- **Performance and optimization (Phase 3).** Benchmark each index against Python's built-in structures (my hash-table lookup is currently 8 to 12 times slower than `dict`), profile the price-range query, which slowed more than lg *n* predicts at 100,000 products, and stress-test delete-heavy workloads and catalogs of a million products.
-- **Persistence, concurrency, and interfaces.** Log each committed transaction to durable storage, add locking so several registers can update stock at once, and expose the facade through a small web API, which is how I would connect it to a PHP portal at work.
+### Final Evaluation
+
+The final solution runs each operation 1.7 to 3.7 times faster than the proof of concept, uses 37% less memory, loads a large catalog 8 times faster, and gives the same answers. Its main limitation is the price-range query, which still slows as the catalog grows (12.4 µs at one million products, 31.7 at four million) because each result is fetched from a different place in memory. The system is also single-threaded, keeps everything in memory (about 2.5 GB at four million products), and pays Python's interpreter overhead on every step. The next steps follow from those limits: a transaction log so the inventory survives a restart, locking for multiple registers, and a compiled extension for the hottest paths. Every optimization here had to keep the same answers, and the tests show that it did.
 
 ## References
 
-Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design patterns: Elements of reusable object-oriented software*. Addison-Wesley.
+Bayer, R., & McCreight, E. (1972). Organization and maintenance of large ordered indexes. *Acta Informatica, 1*(3), 173–189. https://doi.org/10.1007/BF00288683
 
-Haerder, T., & Reuter, A. (1983). Principles of transaction-oriented database recovery. *ACM Computing Surveys, 15*(4), 287–317. https://doi.org/10.1145/289.291
+Floyd, R. W. (1964). Algorithm 245: Treesort 3. *Communications of the ACM, 7*(12), 701. https://doi.org/10.1145/355588.365103
+
+Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design patterns: Elements of reusable object-oriented software*. Addison-Wesley.
 
 Knuth, D. E. (1998). *The art of computer programming: Vol. 3. Sorting and searching* (2nd ed.). Addison-Wesley.
 
-Pugh, W. (1990). Skip lists: A probabilistic alternative to balanced trees. *Communications of the ACM, 33*(6), 668–676. https://doi.org/10.1145/78973.78977
+Lorie, R. A. (1977). Physical integrity in a large segmented database. *ACM Transactions on Database Systems, 2*(1), 91–104. https://doi.org/10.1145/320521.320540
 
-Williams, J. W. J. (1964). Algorithm 232: Heapsort. *Communications of the ACM, 7*(6), 347–348. https://doi.org/10.1145/512274.512284
+Rao, J., & Ross, K. A. (2000). Making B+-trees cache conscious in main memory. In *Proceedings of the 2000 ACM SIGMOD International Conference on Management of Data* (pp. 475–486). Association for Computing Machinery. https://doi.org/10.1145/342009.335449
