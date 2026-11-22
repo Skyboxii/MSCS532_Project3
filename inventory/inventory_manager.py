@@ -162,7 +162,10 @@ class InventoryManager:
         """
         if self._tx is not None:
             raise InventoryError("bulk_load cannot run inside a transaction")
-        new = list(products)
+        try:
+            new = list(products)
+        except TypeError:
+            raise ValidationError("bulk_load needs an iterable of Products") from None
         seen = set(self._products)
         for p in new:
             if not isinstance(p, Product):
@@ -280,6 +283,8 @@ class InventoryManager:
         cached per category and dropped only when the category's membership
         changes, so repeated listings cost O(k) instead of O(k log k).
         """
+        if not isinstance(category, str):
+            raise ValidationError(f"category must be text, got {type(category).__name__}")
         order = self._cat_order.get(category)
         if order is None:
             skus = self._categories.get(category)
@@ -320,7 +325,7 @@ class InventoryManager:
 
     def cheapest(self, k=1):
         """The k lowest-priced products. O(k)."""
-        to_count(k, "k")
+        k = min(to_count(k, "k"), len(self))       # huge k would overflow islice
         products = self._products
         return [products[sku] for _, sku in self._by_price.first(k)]
 

@@ -7,6 +7,8 @@ from decimal import Decimal, InvalidOperation
 from .exceptions import ValidationError
 
 CENT = Decimal("0.01")
+MAX_PRICE = Decimal("10000000.00")   # $10 million: keeps Decimal arithmetic in range (stress tests
+                                     # found prices near 1e26 crashed quantize() with InvalidOperation)
 
 # Flyweight cache: one shared Decimal per distinct price.  A catalog of a
 # million products has at most ~100,000 distinct prices between $0.01 and
@@ -36,12 +38,16 @@ def to_price(value, field="price"):
         raise ValidationError(f"{field} must be finite, got {value!r}")
     if price < 0:
         raise ValidationError(f"{field} cannot be negative, got {value!r}")
+    if price > MAX_PRICE:
+        raise ValidationError(f"{field} cannot exceed {MAX_PRICE}, got {value!r}")
     if price != price.quantize(CENT):
         raise ValidationError(f"{field} cannot have fractions of a cent, got {value!r}")
     cents = int(price * 100)
     cached = _PRICES.get(cents)
     if cached is None:
-        cached = price.quantize(CENT)
+        # Rebuild from the integer so every price is canonical: two decimal
+        # places and never "-0.00" (Decimal keeps the sign of negative zero).
+        cached = Decimal(cents).scaleb(-2)
         if len(_PRICES) < _PRICE_CACHE_LIMIT:
             _PRICES[cents] = cached
     return cached
