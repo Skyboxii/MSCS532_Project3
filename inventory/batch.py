@@ -10,7 +10,7 @@ first error.
 import csv
 from dataclasses import dataclass, field
 
-from .exceptions import InventoryError, ValidationError
+from .exceptions import DuplicateSKUError, InventoryError, ValidationError
 from .product import Product
 
 PRODUCT_COLUMNS = ("sku", "name", "category", "price", "quantity", "reorder_point")
@@ -90,16 +90,38 @@ def read_movements(path):
     return movements, failures
 
 
+BULK_RATIO = 0.25       # bulk-load when the file adds at least 25% to the catalog
+
+
 def import_products(inventory, path):
-    """Add every valid product in a CSV file; duplicates and bad rows are reported."""
+    """
+    Add every valid product in a CSV file; duplicates and bad rows are reported.
+
+    Phase 3: when the file is large relative to the catalog, the rows go in
+    through bulk_load() (one O((n + m) log(n + m)) rebuild) instead of m
+    separate inserts.  A small file added to a large catalog still uses
+    add_product(), because rebuilding n existing entries to add a handful
+    would cost more than it saves.
+    """
     products, failures = read_products(path)
     result = BatchResult(failed=list(failures))
-    for product in products:
-        try:
-            inventory.add_product(product)
-            result.succeeded.append(product.sku)
-        except InventoryError as e:
-            result.failed.append((None, str(e)))
+    if len(products) < BULK_RATIO * len(inventory):
+        for product in products:
+            try:
+                inventory.add_product(product)
+                result.succeeded.append(product.sku)
+            except InventoryError as e:
+                result.failed.append((None, str(e)))
+        return result
+    clean, seen = [], set()
+    for product in products:                    # same duplicate rules as add_product
+        if product.sku in seen or product.sku in inventory:
+            result.failed.append((None, str(DuplicateSKUError(product.sku))))
+        else:
+            seen.add(product.sku)
+            clean.append(product)
+    inventory.bulk_load(clean)
+    result.succeeded.extend(p.sku for p in clean)
     return result
 
 

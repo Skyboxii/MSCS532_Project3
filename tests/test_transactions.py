@@ -13,9 +13,35 @@ class Injected(RuntimeError):
     pass
 
 
-def fail_once(obj, method_name):
-    """Make obj.method_name raise Injected on its first call, then behave normally
-    (so the rollback itself can still use it)."""
+class FailingDict(dict):
+    """A dict whose chosen mutating method raises Injected once.  Phase 3 keeps
+    products and categories in plain dicts, whose methods cannot be patched
+    on an instance, so the harness swaps in this subclass instead."""
+    armed = None
+
+    def _check(self, name):
+        if self.armed == name:
+            self.armed = None
+            raise Injected(f"dict.{name}")
+
+    def __setitem__(self, key, value):
+        self._check("__setitem__")
+        super().__setitem__(key, value)
+
+    def pop(self, *args):
+        self._check("pop")
+        return super().pop(*args)
+
+
+def fail_once(inv, owner, method_name):
+    """Make inv.<owner>.<method_name> raise Injected on its first call, then behave
+    normally (so the rollback itself can still use it)."""
+    obj = inv if owner is None else getattr(inv, owner)
+    if isinstance(obj, dict):
+        failing = FailingDict(obj)
+        failing.armed = method_name
+        setattr(inv, owner, failing)
+        return
     original = getattr(obj, method_name)
     state = {"armed": True}
 
@@ -60,12 +86,12 @@ OPERATIONS = {
 }
 
 TARGETS = [
-    ("_products", "put"), ("_products", "remove"),
+    ("_products", "__setitem__"), ("_products", "pop"),
     ("_by_price", "insert"), ("_by_price", "remove"),
-    ("_categories", "put"), ("_categories", "remove"),
+    ("_categories", "__setitem__"), ("_categories", "pop"),
     ("_stock", "push"), ("_stock", "remove"), ("_stock", "update"),
     ("_by_name", "insert"), ("_by_name", "remove"),
-    (None, "_change_value"),        # fails after every index has been updated
+    (None, "_add_cents"),           # fails after every index has been updated
 ]
 
 
@@ -77,7 +103,7 @@ class TestRollback(unittest.TestCase):
                 with self.subTest(operation=op_name, fails=f"{owner}.{method}"):
                     inv = build()
                     before = snapshot(inv)
-                    fail_once(inv if owner is None else getattr(inv, owner), method)
+                    fail_once(inv, owner, method)
                     try:
                         op(inv)
                     except Injected:
@@ -85,7 +111,7 @@ class TestRollback(unittest.TestCase):
                         self.assertEqual(snapshot(inv), before)
                     self.assertEqual(inv.verify_integrity(), [])
         # Index steps per operation: add 6, remove 6, adjust_quantity 3, update_price 4,
-        # change_category 2 (adding to an existing set is not a HashTable call),
+        # change_category 2 (adding to an existing set is not a dict call),
         # set_reorder_point 2, rename_product 3.
         self.assertEqual(injected, 26)
 
@@ -123,7 +149,7 @@ class TestVerifyIntegrity(unittest.TestCase):
     def test_detects_corruption(self):
         inv = build()
         self.assertEqual(inv.verify_integrity(), [])
-        inv._products.put("B", Product("B", "Bravo", "Shared", "21.00", 2, 4))   # bypass the facade
+        inv._products["B"] = Product("B", "Bravo", "Shared", "21.00", 2, 4)      # bypass the facade
         problems = inv.verify_integrity()
         self.assertTrue(any("price index" in p for p in problems))
         self.assertTrue(any("total value" in p for p in problems))

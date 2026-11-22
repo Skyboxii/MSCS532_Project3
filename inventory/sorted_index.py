@@ -109,7 +109,8 @@ class SortedKeyList:
         return j < len(block) and block[j] == key
 
     def range(self, low, high, limit=None):
-        """Keys k with low <= k < high, in order (at most `limit` of them). O(log n + k)."""
+        """Keys k with low <= k < high (high=None: no upper bound), in order, at most
+        `limit` of them. O(log n + k)."""
         out = []
         maxes, blocks = self._maxes, self._blocks
         i = bisect_left(maxes, low)
@@ -117,7 +118,7 @@ class SortedKeyList:
             j = bisect_left(blocks[i], low)
             while i < len(blocks):
                 block = blocks[i]
-                end = bisect_left(block, high, j)
+                end = len(block) if high is None else bisect_left(block, high, j)
                 out.extend(block[j:end])
                 if end < len(block) or (limit is not None and len(out) >= limit):
                     break

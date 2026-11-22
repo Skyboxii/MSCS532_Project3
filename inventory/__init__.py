@@ -9,9 +9,10 @@ from .indexed_heap import IndexedMinHeap
 from .inventory_manager import InventoryManager
 from .product import Product
 from .skip_list import SkipList
+from .sorted_index import SortedKeyList
 
 __all__ = [
-    "HashTable", "IndexedMinHeap", "InventoryManager", "Product", "SkipList",
+    "HashTable", "IndexedMinHeap", "InventoryManager", "Product", "SkipList", "SortedKeyList",
     "InventoryError", "ValidationError", "ProductNotFoundError", "DuplicateSKUError",
     "InsufficientStockError", "BatchResult", "StockMovement", "apply_movements",
     "import_products", "read_movements", "read_products",
