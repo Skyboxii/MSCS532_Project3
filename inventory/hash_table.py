@@ -1,18 +1,27 @@
 """
-Hash table with open addressing and linear probing.
+Hash table with open addressing, linear probing, and tombstone-free deletion.
 
-Used as the primary SKU -> Product index. Average-case O(1) get/put/remove
-while the load factor stays bounded (Knuth, 1998, Section 6.4).
+Average-case O(1) get/put/remove while the load factor stays bounded
+(Knuth, 1998, Section 6.4).
+
+Phase 3 change: deletion uses backward shifting (Knuth's Algorithm R)
+instead of tombstones.  In Phase 2 a deleted slot became a tombstone that
+every later search had to step over, so a delete-heavy workload made
+unsuccessful searches slower and slower until the next rehash.  Backward
+shifting moves later entries of the same probe run back into the freed
+slot, so the table never contains anything but live entries and empty slots.
+
+The InventoryManager now stores products in Python's built-in dict (the same
+open-addressing idea implemented in C); this class remains the from-scratch
+implementation used in the tests and the delete-heavy benchmark.
 """
-
-_DELETED = object()     # tombstone: marks a removed slot so probe chains stay intact
 
 
 class HashTable:
     """Map hashable, non-None keys to values."""
 
     MIN_CAPACITY = 8
-    MAX_LOAD = 0.6      # resize once live entries + tombstones exceed 60% of slots
+    MAX_LOAD = 0.6      # grow once live entries exceed 60% of slots
 
     def __init__(self, capacity=MIN_CAPACITY):
         cap = self.MIN_CAPACITY
@@ -20,92 +29,92 @@ class HashTable:
             cap *= 2                    # power of two so we can mask instead of mod
         self._keys = [None] * cap
         self._values = [None] * cap
-        self._size = 0                  # live entries
-        self._used = 0                  # live entries + tombstones
+        self._size = 0
 
     # -- core probing ---------------------------------------------------------
 
-    def _probe(self, key):
-        """
-        Walk the probe sequence for key.
-
-        Returns (index_of_key or None, first_reusable_slot). The first reusable
-        slot is the earliest tombstone seen, or the empty slot that ended the
-        search, so inserts recycle tombstones instead of growing the chain.
-        """
+    def _find(self, key):
+        """Return the slot holding key, or the empty slot where it would go."""
         if key is None:
             raise TypeError("HashTable keys cannot be None")
-        mask = len(self._keys) - 1
+        keys = self._keys
+        mask = len(keys) - 1
         i = hash(key) & mask
-        first_free = None
         while True:
-            k = self._keys[i]
-            if k is None:                           # end of chain: key absent
-                return None, (i if first_free is None else first_free)
-            if k is _DELETED:
-                if first_free is None:
-                    first_free = i
-            elif k == key:
-                return i, first_free
+            k = keys[i]
+            if k is None or k == key:
+                return i
             i = (i + 1) & mask                      # linear probing
 
-    def _resize(self):
-        """Rehash all live entries, doubling capacity if the table is busy.
-        Rehashing also discards tombstones."""
-        cap = len(self._keys)
-        if self._size > cap * self.MAX_LOAD / 2:
-            cap *= 2
+    def _grow(self):
         old = zip(self._keys, self._values)
-        self._keys = [None] * cap
-        self._values = [None] * cap
-        self._size = self._used = 0
+        self._keys = [None] * (len(self._keys) * 2)
+        self._values = [None] * len(self._keys)
+        self._size = 0
         for k, v in old:
-            if k is not None and k is not _DELETED:
+            if k is not None:
                 self.put(k, v)
 
     # -- public API -----------------------------------------------------------
 
     def put(self, key, value):
         """Insert or replace the value for key. Amortized O(1)."""
-        idx, free = self._probe(key)
-        if idx is not None:
-            self._values[idx] = value
-            return
-        if self._keys[free] is None:                # consuming a fresh slot
-            self._used += 1
-        self._keys[free] = key
-        self._values[free] = value
-        self._size += 1
-        if self._used > len(self._keys) * self.MAX_LOAD:
-            self._resize()
+        i = self._find(key)
+        if self._keys[i] is None:
+            self._keys[i] = key
+            self._size += 1
+        self._values[i] = value
+        if self._size > len(self._keys) * self.MAX_LOAD:
+            self._grow()
 
     def get(self, key, default=None):
         """Return the value for key, or default if absent. Average O(1)."""
-        idx, _ = self._probe(key)
-        return default if idx is None else self._values[idx]
+        i = self._find(key)
+        return default if self._keys[i] is None else self._values[i]
 
     def remove(self, key):
-        """Delete key and return its value. Raises KeyError if absent."""
-        idx, _ = self._probe(key)
-        if idx is None:
+        """
+        Delete key and return its value. Raises KeyError if absent.
+
+        Backward-shift deletion: after emptying slot i, walk forward through
+        the rest of the probe run.  An entry at slot j whose home slot h is
+        NOT cyclically inside (i, j] can legally sit at i (its probe sequence
+        passes through i), so it moves back to i and its old slot becomes the
+        new hole.  The walk stops at the first empty slot.
+        """
+        keys, values = self._keys, self._values
+        i = self._find(key)
+        if keys[i] is None:
             raise KeyError(key)
-        value = self._values[idx]
-        self._keys[idx] = _DELETED
-        self._values[idx] = None
+        value = values[i]
+        mask = len(keys) - 1
+        j = i
+        while True:
+            j = (j + 1) & mask
+            k = keys[j]
+            if k is None:
+                break
+            h = hash(k) & mask
+            # Is h cyclically in (i, j]?  If so, k must stay where it is.
+            if (i < j and i < h <= j) or (i > j and (h > i or h <= j)):
+                continue
+            keys[i], values[i] = k, values[j]       # shift back into the hole
+            i = j
+        keys[i] = values[i] = None
         self._size -= 1
         return value
 
     def __getitem__(self, key):
-        idx, _ = self._probe(key)
-        if idx is None:
+        i = self._find(key)
+        if self._keys[i] is None:
             raise KeyError(key)
-        return self._values[idx]
+        return self._values[i]
 
     __setitem__ = put
     __delitem__ = remove
 
     def __contains__(self, key):
-        return self._probe(key)[0] is not None
+        return self._keys[self._find(key)] is not None
 
     def __len__(self):
         return self._size
@@ -113,7 +122,7 @@ class HashTable:
     def items(self):
         """Yield (key, value) pairs in slot order. O(capacity)."""
         for k, v in zip(self._keys, self._values):
-            if k is not None and k is not _DELETED:
+            if k is not None:
                 yield k, v
 
     def __iter__(self):
@@ -126,4 +135,23 @@ class HashTable:
 
     @property
     def load_factor(self):
-        return self._used / len(self._keys)
+        return self._size / len(self._keys)
+
+    def check_invariants(self):
+        """Every key must be reachable from its home slot without crossing an
+        empty slot (the property backward shifting has to preserve)."""
+        keys = self._keys
+        mask = len(keys) - 1
+        problems = []
+        for slot, k in enumerate(keys):
+            if k is None:
+                continue
+            i = hash(k) & mask
+            while i != slot:
+                if keys[i] is None:
+                    problems.append(f"{k!r} is cut off from its home slot")
+                    break
+                i = (i + 1) & mask
+        if sum(k is not None for k in keys) != self._size:
+            problems.append("size counter does not match the table")
+        return problems
